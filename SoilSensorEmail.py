@@ -4,7 +4,7 @@ import smtplib
 from email.message import EmailMessage
 
 # Name: Zhang you
-# Date: 2025/4/16
+# Date: 2025/4/23
 
 detection_count = 0
 max_detections = 4
