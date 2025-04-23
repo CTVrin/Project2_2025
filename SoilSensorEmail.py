@@ -3,21 +3,41 @@ import time
 import smtplib
 from email.message import EmailMessage
 
-#Name: Zhang you
-#Date: 2025/4/16
+# Name: Zhang you
+# Date: 2025/4/16
+
+detection_count = 0
+max_detections = 4
+detection_interval = 3 * 60 * 60
 
 
 def callback(channel):
-    if GPIO.input(channel):
-        print("Water Detected!")
-    else:
-        send_email()
+    global detection_count
+    current_time = time.time()
+
+    # check the time block
+    if not hasattr(callback, 'last_detection_time'):
+        callback.last_detection_time = 0
+
+    if current_time - callback.last_detection_time >= detection_interval and detection_count < max_detections:
+        callback.last_detection_time = current_time
+        detection_count += 1
+
+        if GPIO.input(channel):
+            send_email("I need water")
+        else:
+            send_email("I'm fine")
+
+        print(f"Detection {detection_count}/{max_detections} completed at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        # calculate the need to continue
+        if detection_count >= max_detections:
+            print("All detections completed. Exiting program.")
+            GPIO.cleanup()
+            exit()
 
 
-
-
-def send_email():
-    
+def send_email(body):
     # Set the sender email and password and recipient email
     from_email_addr = "2547421656@qq.com"
     from_email_pass = "rqulxeokmgdlecdi"
@@ -27,7 +47,6 @@ def send_email():
     msg = EmailMessage()
 
     # Set the email body
-    body = "Please water your plant"
     msg.set_content(body)
 
     # Set sender and recipient
@@ -35,14 +54,10 @@ def send_email():
     msg['To'] = to_email_addr
 
     # Set your email subject
-    msg['Subject'] = 'Water'
+    msg['Subject'] = 'Plant water detecting'
 
     # Connecting to server and sending email
-    # Edit the following line with your provider's SMTP server details
     server = smtplib.SMTP_SSL('smtp.qq.com', 465)
-
-    # Comment out the next line if your email provider doesn't use TLS
-    # server.starttls()
 
     # Login to the smtp server
     server.login(from_email_addr, from_email_pass)
@@ -56,7 +71,6 @@ def send_email():
 
 
 if __name__ == '__main__':
-    
     # GPIO SETUP
     channel = 4
     GPIO.setmode(GPIO.BCM)
@@ -67,5 +81,18 @@ if __name__ == '__main__':
     GPIO.add_event_detect(channel, GPIO.BOTH, bouncetime=300)  # detect the pin goes high or low
     GPIO.add_event_callback(channel, callback)  # set call back function
 
-    while True:
-        time.sleep(1)
+    print(f"Monitoring started.I will check every 3 hours, total {max_detections} times.")
+
+    try:
+        while True:
+
+            current_time = time.time()
+            if hasattr(callback, 'last_detection_time') and \
+                    current_time - callback.last_detection_time >= detection_interval and \
+                    detection_count < max_detections:
+                callback(channel)
+
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Program interrupted by user")
+        GPIO.cleanup()
